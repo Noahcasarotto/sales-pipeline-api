@@ -40,6 +40,7 @@ router.post('/:id/follow-up', outreachController.createFollowUp);
 // Test endpoints for integrations
 router.get('/test/instantly', outreachController.testInstantlyIntegration);
 router.get('/test/salesfinity', outreachController.testSalesfinityIntegration);
+router.get('/test/salesfinity/all-apis', outreachController.testAllSalesfinityApis);
 router.get('/test/linkedin', outreachController.testLinkedInIntegration);
 
 module.exports = router; 
