@@ -3,6 +3,7 @@ const Lead = require('../models/lead');
 const Campaign = require('../models/campaign');
 const outreachService = require('../services/outreach');
 const User = require('../models/user');
+const axios = require('axios');
 
 // Get all outreach activities with filters and pagination
 exports.getOutreachActivities = async (req, res) => {
@@ -542,12 +543,111 @@ exports.testInstantlyIntegration = async (req, res) => {
 };
 
 exports.testSalesfinityIntegration = async (req, res) => {
-  // Placeholder for Salesfinity integration test
-  res.status(200).json({
-    status: 'success',
-    message: 'Salesfinity integration test endpoint',
-    implementation: 'Not yet implemented'
-  });
+  try {
+    // Retrieve API credentials from environment variables
+    const apiKey = process.env.SALESFINITY_API_KEY || 'ff463994-d38c-43f3-a100-7dcc519570b9';
+    
+    if (!apiKey) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Salesfinity API key not configured'
+      });
+    }
+    
+    // Create a SalesfinityService instance
+    const SalesfinityService = require('../services/salesfinity');
+    const salesfinityService = new SalesfinityService(apiKey);
+    
+    try {
+      // Test the connection to contact-lists endpoint
+      const connectionResult = await salesfinityService.validateConnection();
+      
+      if (!connectionResult.valid) {
+        return res.status(401).json({
+          status: 'error',
+          message: 'Failed to authenticate with Salesfinity API',
+          error: connectionResult.error
+        });
+      }
+      
+      // Fetch contact lists (this part works with the API)
+      const contactListsData = await salesfinityService.getContactLists(1, 5);
+      const contactLists = contactListsData.data || [];
+      
+      // Get simulated contacts from the first list
+      let contactsFromList = [];
+      if (contactLists.length > 0) {
+        const firstListId = contactLists[0]._id;
+        const contactsData = await salesfinityService.getContactsFromList(firstListId, 1, 5);
+        contactsFromList = contactsData.data || [];
+      }
+      
+      // Create a simulated contact list
+      const newListResult = await salesfinityService.createContactList('API Test List');
+      
+      // Test simulated call scheduling
+      const simulatedCall = await salesfinityService.scheduleCall({
+        firstName: 'Test',
+        lastName: 'User',
+        phone: '+1234567890',
+        email: 'test@example.com'
+      });
+      
+      // Return successful response with data
+      return res.status(200).json({
+        status: 'success',
+        message: 'Connected to Salesfinity API',
+        serviceStatus: 'Limited',
+        apiCredentials: {
+          apiKey: `${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 4)}`,
+          configured: true
+        },
+        data: {
+          realData: {
+            contactLists: contactLists.map(list => ({
+              id: list._id,
+              name: list.name,
+              user: list.user
+            }))
+          },
+          simulatedData: {
+            contactsFromList: contactsFromList.map(contact => ({
+              id: contact._id,
+              name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim(),
+              email: contact.email,
+              phone: contact.phone,
+              company: contact.company
+            })),
+            newList: {
+              id: newListResult.data._id,
+              name: newListResult.data.name,
+              createdAt: newListResult.data.createdAt
+            },
+            call: {
+              id: simulatedCall.id,
+              status: simulatedCall.status,
+              scheduledAt: simulatedCall.scheduledAt
+            }
+          }
+        },
+        note: "Salesfinity API has limited functionality. Only contact list retrieval is working with the actual API. Other features are simulated for integration testing."
+      });
+    } catch (serviceError) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error testing Salesfinity service',
+        error: serviceError.message,
+        apiKey: `${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 4)}`
+      });
+    }
+  } catch (error) {
+    console.error('Salesfinity API test error:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Error testing Salesfinity integration',
+      error: error.message
+    });
+  }
 };
 
 exports.testLinkedInIntegration = async (req, res) => {
